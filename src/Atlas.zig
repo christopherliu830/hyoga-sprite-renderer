@@ -36,7 +36,6 @@ pub fn init(gpa: std.mem.Allocator, gpu: Gpu, blob: hy.PackFile.Blob) !Atlas {
 
     for (metadata.tags, 0..) |*tag, i| {
         const name = tag.name();
-        std.log.info("Name: {s} ({*})", .{ name, name });
         try tags.put(gpa, name, @intCast(i));
     }
 
@@ -52,7 +51,7 @@ pub fn deinit(a: *Atlas, gpa: std.mem.Allocator, gpu: Gpu) void {
     a.tags.deinit(gpa);
 }
 
-pub fn uv(a: *Atlas, image: hy.PackFile.ImageAtlas.Image) [4]f32 {
+pub fn uv(a: Atlas, image: hy.PackFile.ImageAtlas.Image) [4]f32 {
     const x: f32 = @floatFromInt(image.x);
     const y: f32 = @floatFromInt(image.y);
     const w: f32 = @floatFromInt(image.w);
@@ -68,23 +67,23 @@ pub fn uv(a: *Atlas, image: hy.PackFile.ImageAtlas.Image) [4]f32 {
     };
 }
 
-pub fn get(a: *Atlas, name: []const u8, step: u32) hy.PackFile.ImageAtlas.Image {
+pub fn get(a: Atlas, name: []const u8, step: u32) hy.PackFile.ImageAtlas.Image {
     const tag = a.tags.get(name).?;
     return a.get_tag(tag, step);
 }
 
-pub fn get_tag(a: *Atlas, tag: u32, step: u32) hy.PackFile.ImageAtlas.Image {
+pub fn get_tag(a: Atlas, tag: u32, step: u32) hy.PackFile.ImageAtlas.Image {
     const region = a.metadata.tags[tag];
     const image_index = a.metadata.tag_images[region.start..region.end][step];
     return a.metadata.images[image_index];
 }
 
-pub fn count(a: *Atlas, name: []const u8) u32 {
+pub fn count(a: Atlas, name: []const u8) u32 {
     const tag = a.tags.get(name).?;
     return count_tag(tag);
 }
 
-pub fn count_tag(a: *Atlas, tag: u32) u32 {
+pub fn count_tag(a: Atlas, tag: u32) u32 {
     const region = a.metadata.tags[tag];
     return region.end - region.start;
 }

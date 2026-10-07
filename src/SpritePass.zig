@@ -3,6 +3,7 @@ const SpritePass = @This();
 const std = @import("std");
 const hy = @import("hyoga");
 const Renderer = @import("Renderer.zig");
+const Atlas = @import("Atlas.zig");
 
 const hym = hy.math;
 const vec2 = hy.math.vec2;
@@ -62,6 +63,7 @@ pub const Instance = struct {
     uv: [4]f32,
     color: hy.Color,
     z_order: f32 = 0,
+    texture: Gpu.Texture,
 
     const Repr = extern struct {
         position_world: [2]f32,
@@ -157,28 +159,56 @@ pub fn render(sp: *SpritePass, r: *Renderer, cmd: Gpu.CommandBuffer, pass: Gpu.R
             },
         });
 
-        pass.bind_samplers(gpu, .{
-            .stage = .fragment,
-            .slot = 0,
-            .bindings = &.{
-                .{ .texture = r.atlas.texture, .sampler = sp.sampler },
-            },
-        });
+        var current_texture: Gpu.Texture = sp.instances.items[0].texture;
+        var base: usize = 0;
+        var i: usize = 0;
 
         pass.bind_pipeline(gpu, sp.pipeline);
 
-        cmd.uniform_push(gpu, .vertex, 0, ctx.instances.offset) catch {
-            std.log.warn("cmd uniform push failed", .{});
-        };
+        while (i < sp.instances.items.len) : (i += 1) {
+            const instance = sp.instances.items[i];
 
-        pass.draw(gpu, .{ .vertex_count = @intCast(6 * sp.instances.items.len) });
+            if (instance.texture != current_texture) {
+                if (current_texture != .none) {
+                    pass.bind_samplers(gpu, .{
+                        .stage = .fragment,
+                        .slot = 0,
+                        .bindings = &.{
+                            .{ .texture = current_texture, .sampler = sp.sampler },
+                        },
+                    });
+
+                    cmd.uniform_push(gpu, .vertex, 0, ctx.instances.offset + @sizeOf(Instance.Repr) * base) catch unreachable;
+
+                    pass.draw(gpu, .{ .vertex_count = @intCast(6 * (i - base)) });
+                }
+
+                base = i;
+                current_texture = instance.texture;
+            }
+        }
+
+        if (i > base) {
+            if (current_texture != .none) {
+                pass.bind_samplers(gpu, .{
+                    .stage = .fragment,
+                    .slot = 0,
+                    .bindings = &.{
+                        .{ .texture = current_texture, .sampler = sp.sampler },
+                    },
+                });
+
+                cmd.uniform_push(gpu, .vertex, 0, ctx.instances.offset + @sizeOf(Instance.Repr) * base) catch unreachable;
+                pass.draw(gpu, .{ .vertex_count = @intCast(6 * (i - base)) });
+            }
+        }
 
         sp.pending_render_ctx = null;
         sp.instances = .empty;
     }
 }
 
-pub fn instance_add(sp: *SpritePass, r: *Renderer, arena: std.mem.Allocator, opts: struct {
+pub fn instance_add(sp: *SpritePass, atlas: Atlas, arena: std.mem.Allocator, opts: struct {
     position: vec3,
     sprite: u32,
     rotation: vec2 = .px,
@@ -193,9 +223,9 @@ pub fn instance_add(sp: *SpritePass, r: *Renderer, arena: std.mem.Allocator, opt
 }) !void {
     const rate = opts.anim_speed;
     const unclamped_step = @as(u32, @trunc(hy.time.ttos(opts.anim_time) * rate)) + opts.anim_step_offset;
-    const region_count = r.atlas.count_tag(opts.sprite);
+    const region_count = atlas.count_tag(opts.sprite);
     const step = if (opts.anim_step) |s| s else unclamped_step % region_count;
-    const image = r.atlas.get_tag(opts.sprite, step);
+    const image = atlas.get_tag(opts.sprite, step);
     const position = opts.position;
 
     var scale = opts.scale.mulxy(@floatFromInt(image.w), @floatFromInt(image.h));
@@ -213,8 +243,8 @@ pub fn instance_add(sp: *SpritePass, r: *Renderer, arena: std.mem.Allocator, opt
         const pivot_y = image.origin_y - @as(i64, image.trim_offset_y);
 
         break :blk .of(
-            -@as(f32, @floatFromInt(pivot_x)),
-            @as(f32, @floatFromInt(pivot_y)),
+            -@as(f32, @floatFromInt(pivot_x)) * opts.scale.x(),
+            @as(f32, @floatFromInt(pivot_y)) * opts.scale.y(),
         );
     };
 
@@ -223,7 +253,7 @@ pub fn instance_add(sp: *SpritePass, r: *Renderer, arena: std.mem.Allocator, opt
         scale = scale.mulxy(-1, 1);
     }
 
-    const uv = r.atlas.uv(image);
+    const uv = atlas.uv(image);
 
     _ = try sp.instances.append(arena, .{
         .position_world = position.xy().add(offset),
@@ -232,6 +262,27 @@ pub fn instance_add(sp: *SpritePass, r: *Renderer, arena: std.mem.Allocator, opt
         .uv = uv,
         .color = opts.color,
         .z_order = opts.z_order,
+        .texture = atlas.texture,
+    });
+}
+
+pub fn custom_add(sp: *SpritePass, arena: std.mem.Allocator, opts: struct {
+    position: vec2,
+    rotation: vec2 = .px,
+    size: vec2,
+    texture: Gpu.Texture,
+    uv: [4]f32,
+    color: hy.Color = .white,
+    z_order: f32 = 0.0,
+}) !void {
+    _ = try sp.instances.append(arena, .{
+        .position_world = opts.position,
+        .rotation = opts.rotation,
+        .scale = opts.size,
+        .uv = opts.uv,
+        .color = opts.color,
+        .z_order = opts.z_order,
+        .texture = opts.texture,
     });
 }
 

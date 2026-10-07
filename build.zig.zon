@@ -4,6 +4,7 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .hyoga = .{ .path = "../hyoga" },
+        .hyoga_ui = .{ .path = "../hyoga/modules/ui" },
         .asset_pack = .{ .path = "../hyoga-asset-pack" },
     },
     .paths = .{""},

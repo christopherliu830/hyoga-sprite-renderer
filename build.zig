@@ -12,6 +12,8 @@ pub fn build(b: *std.Build) void {
         .dep = b.dependency("hyoga", .{}),
     };
 
+    const hy_ui = b.dependency("hyoga_ui", .{});
+
     const hpf = asset_pack.pack(b, b.dependency("asset_pack", .{}), @import("manifest.zon"));
 
     const hy_sprite = b.addModule("hy_sprite", .{
@@ -20,6 +22,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .imports = &.{
             .{ .name = "hyoga", .module = hy.module("core") },
+            .{ .name = "hy_ui", .module = hy_ui.module("ui") },
             .{ .name = "stb_image", .module = hy.module("stb_image") },
         },
     });

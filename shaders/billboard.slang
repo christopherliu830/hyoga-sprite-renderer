@@ -36,14 +36,18 @@ float3 billboard_adjust(float2 position, float2 rotation, float4x4 view) {
 }
 
 float3 billboard_adjust_with_right_up(float2 position, float2 offset, float2 rotation, float3 right, float3 up) {
-    var p = position - offset;
+    var p = position;
+
+    p -= offset;
+
     p = float2(p.x * rotation.x - p.y * rotation.y,
                p.y * rotation.x + p.x * rotation.y);
 
-    let position_world = right * p.x +
-                         up    * p.y;
+    var pp = (right * p.x) + (up * p.y);
 
-    return position_world;
+    pp += float3(offset, 0.0);
+
+    return pp;
 }
 
 
@@ -76,14 +80,15 @@ BillboardOut vertex_main(uint idx: SV_VertexID) {
     float3 world_position = sprite.world_position;
 
     float4x4 view = scene.view;
+
     float3 camera_right = float3(view[0][0], view[1][0], view[2][0]);
     float3 camera_up = float3(view[0][1], view[1][1], view[2][1]);
 
     let th = sprite.rotation;
-    let offset = vertex_position_buffer[vertex_idx] * sprite.scale;
-    let position = billboard_adjust_with_right_up(offset, 0, th, camera_right, camera_up);
-
+    let local_offset = vertex_position_buffer[vertex_idx] * sprite.scale;
+    let position = billboard_adjust_with_right_up(local_offset, float2(0.5, -0.5) * sprite.scale, th, camera_right, camera_up);
     let position_world = float4(world_position + position, 1.0);
+    // let position_world = float4(world_position + float3(local_offset, 0.0), 1.0);
 
     float2 uv_lookup[4] = {
         { sprite.uv[0], sprite.uv[3] },
