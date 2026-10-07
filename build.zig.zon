@@ -1,0 +1,11 @@
+.{
+    .name = .hyoga_sprite_renderer,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        .hyoga = .{ .path = "../hyoga" },
+        .asset_pack = .{ .path = "../hyoga-asset-pack" },
+    },
+    .paths = .{""},
+    .fingerprint = 0x7edf6d1c75a3bb26,
+}

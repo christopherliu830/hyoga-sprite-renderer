@@ -1,0 +1,3 @@
+.{
+    .{ .aseprite, "special", "assets/special_active.aseprite" },
+}
