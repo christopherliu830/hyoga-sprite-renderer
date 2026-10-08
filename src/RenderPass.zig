@@ -244,21 +244,30 @@ pub fn instance_add(sp: *RenderPass, atlas: Atlas, arena: std.mem.Allocator, opt
     const scale = opts.scale.mulxy(@floatFromInt(image.w), @floatFromInt(image.h));
 
     const offset: vec2 = blk: {
-        if (image.origin_x == 0 and image.origin_y == 0) break :blk .zero;
+        const ox: f32 = @floatFromInt(image.origin_x);
+        const oy: f32 = @floatFromInt(image.origin_y);
+        const tx: f32 = @floatFromInt(image.trim_offset_x);
+        const ty: f32 = @floatFromInt(image.trim_offset_y);
+        const sx: f32 = @floatFromInt(image.source_width);
+        const sy: f32 = @floatFromInt(image.source_height);
 
-        // Image coordinates are (0,0) at the top left.
-        // The image's top left is at `image.trim_offset_{xy}`.
-        // The image's pivot is at `image.origin_{xy}`.
-        // So, in order to render the image at the pivot location,
-        // We need to translate the image left by the difference
-        // of the origin and the trim offset.
-        const pivot_x = image.origin_x - @as(i64, image.trim_offset_x);
-        const pivot_y = image.origin_y - @as(i64, image.trim_offset_y);
+        // The sprite should behave as its untrimmed source image would:
+        // a `source_{width,height}` quad whose pivot (`image.origin_{xy}`)
+        // sits on `position`, rotated about the source image's center.
+        // The quad we actually draw is the trimmed rect, whose top left is
+        // at `image.trim_offset_{xy}` in the source image, and the shader
+        // rotates it about its own center, which moves with the trim.
+        const pivot = vec2.of(ox, -oy).mul(opts.scale);
+        const trim = vec2.of(tx, -ty).mul(opts.scale);
+        const source_center = vec2.of(sx, -sy).mul(opts.scale).muls(0.5);
+        const sprite_center: vec2 = scale.mulxy(0.5, -0.5);
 
-        break :blk .of(
-            -@as(f32, @floatFromInt(pivot_x)) * opts.scale.x(),
-            @as(f32, @floatFromInt(pivot_y)) * opts.scale.y(),
-        );
+        // Arm from the source center to the trimmed center. Rotating it
+        // here makes the shader's rotation about `center` equivalent to
+        // one about `source_center`.
+        const arm = trim.add(sprite_center).sub(source_center);
+        const arm_rot = arm.rotate_dir(opts.rotation);
+        break :blk arm_rot.add(source_center).sub(pivot).sub(sprite_center);
     };
 
     var uv = atlas.uv(image);

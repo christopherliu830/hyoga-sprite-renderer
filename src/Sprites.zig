@@ -125,16 +125,6 @@ pub fn deinit(r: *Sprites, rt: hy.Rt) void {
     r.gpu.deinit(rt);
 }
 
-pub fn sprite_create(r: *Sprites, name: []const u8) !Sprite.Handle {
-    const tag = r.atlas.tags.get(name) orelse return error.NotFound;
-    const hdl = try r.sprites.insert(r.gpa, .init(tag));
-    return hdl;
-}
-
-pub fn sprite_destroy(r: *Sprites, hdl: Sprite.Handle) void {
-    r.sprites.remove(hdl);
-}
-
 pub fn text_create(r: *Sprites) !TextObject.Handle {
     const hdl, const txo = try r.text_objects.add(r.gpa);
 
@@ -187,6 +177,22 @@ pub fn camera_position(r: *Sprites, x: u32, y: u32) void {
     r.camera_root_position = .{ x, y, 0 };
 }
 
+pub fn sprite_create(r: *Sprites, name: []const u8) !Sprite.Handle {
+    const tag = r.atlas.tags.get(name) orelse return error.NotFound;
+    const hdl = try r.sprites.insert(r.gpa, .init(tag));
+    return hdl;
+}
+
+pub fn sprite_destroy(r: *Sprites, hdl: Sprite.Handle) void {
+    r.sprites.remove(hdl);
+}
+
+pub fn sprite_dupe(r: *Sprites, hdl: Sprite.Handle) !Sprite.Handle {
+    const sprite = r.sprites.get_ptr(hdl).?.*;
+    const dupe = try r.sprites.insert(r.gpa, sprite);
+    return dupe;
+}
+
 pub fn sprite_position_set(r: *Sprites, hdl: Sprite.Handle, position: vec2) void {
     r.sprites.get_ptr(hdl).?.position = position;
 }
@@ -195,11 +201,11 @@ pub fn sprite_position_get(r: *Sprites, hdl: Sprite.Handle) vec2 {
     return r.sprites.get_ptr(hdl).?.position;
 }
 
-pub fn sprite_sort_order(r: *Sprites, hdl: Sprite.Handle, sort_order: f32) void {
+pub fn sprite_sort_order_set(r: *Sprites, hdl: Sprite.Handle, sort_order: f32) void {
     r.sprites.get_ptr(hdl).?.sort_order = sort_order;
 }
 
-pub fn sprite_time_scale(r: *Sprites, hdl: Sprite.Handle, time_scale: f32) void {
+pub fn sprite_time_scale_set(r: *Sprites, hdl: Sprite.Handle, time_scale: f32) void {
     r.sprites.get_ptr(hdl).?.time_scale = time_scale;
 }
 
@@ -225,7 +231,7 @@ pub fn sprite_flip_y(r: *Sprites, hdl: Sprite.Handle, flip_y: bool) void {
     r.sprites.get_ptr(hdl).?.flip_y = flip_y;
 }
 
-pub fn sprite_loop(r: *Sprites, hdl: Sprite.Handle, loop: bool) void {
+pub fn sprite_loop_set(r: *Sprites, hdl: Sprite.Handle, loop: bool) void {
     r.sprites.get_ptr(hdl).?.loop = loop;
 }
 

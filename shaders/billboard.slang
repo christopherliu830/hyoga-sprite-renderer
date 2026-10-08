@@ -114,6 +114,8 @@ Sampler2D tex_sprites;
 [shader("fragment")]
 float4 fragment_main(BillboardOut input): SV_Target {
     let albedo = tex_sprites.Sample(input.uv);
-    let frag_color = albedo * input.tint_color + input.emit_color;
+    var emit_color = input.emit_color;
+    emit_color.a *= albedo.a;
+    let frag_color = albedo * input.tint_color + emit_color;
     return frag_color;
 };
