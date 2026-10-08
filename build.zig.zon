@@ -3,8 +3,9 @@
     .version = "0.0.1",
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
-        .hyoga = .{ .path = "../hyoga" },
-        .hyoga_ui = .{ .path = "../hyoga/modules/ui" },
+        .hyoga = .{ .path = "../hyoga-core" },
+        .hyoga_rt = .{ .path = "../hyoga-runtime" },
+        .hyoga_ui = .{ .path = "../hyoga-ui" },
         .asset_pack = .{ .path = "../hyoga-asset-pack" },
     },
     .paths = .{""},

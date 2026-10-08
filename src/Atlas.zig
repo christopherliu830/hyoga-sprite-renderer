@@ -1,14 +1,16 @@
 const Atlas = @This();
 
+pub const Tag = enum(u32) { _ };
+
 const std = @import("std");
 const hy = @import("hyoga");
-const stbi = @import("stb_image");
+const stbi = hy.stb_image;
 
 const Gpu = hy.Rt.Gpu;
 
 texture: Gpu.Texture,
 metadata: hy.PackFile.ImageAtlas,
-tags: std.StringHashMapUnmanaged(u32),
+tags: std.StringHashMapUnmanaged(Tag),
 
 pub fn init(gpa: std.mem.Allocator, gpu: Gpu, blob: hy.PackFile.Blob) !Atlas {
     const atlas: Gpu.Texture = atlas: {
@@ -30,13 +32,13 @@ pub fn init(gpa: std.mem.Allocator, gpu: Gpu, blob: hy.PackFile.Blob) !Atlas {
         break :meta try .from_bytes(meta_blob);
     };
 
-    var tags: std.StringHashMapUnmanaged(u32) = .empty;
+    var tags: std.StringHashMapUnmanaged(Tag) = .empty;
 
     defer tags.deinit(gpa);
 
     for (metadata.tags, 0..) |*tag, i| {
         const name = tag.name();
-        try tags.put(gpa, name, @intCast(i));
+        try tags.put(gpa, name, @fromBackingInt(@intCast(i)));
     }
 
     return .{
@@ -72,8 +74,8 @@ pub fn get(a: Atlas, name: []const u8, step: u32) hy.PackFile.ImageAtlas.Image {
     return a.get_tag(tag, step);
 }
 
-pub fn get_tag(a: Atlas, tag: u32, step: u32) hy.PackFile.ImageAtlas.Image {
-    const region = a.metadata.tags[tag];
+pub fn get_tag(a: Atlas, tag: Tag, step: u32) hy.PackFile.ImageAtlas.Image {
+    const region = a.metadata.tags[@backingInt(tag)];
     const image_index = a.metadata.tag_images[region.start..region.end][step];
     return a.metadata.images[image_index];
 }
@@ -83,8 +85,8 @@ pub fn count(a: Atlas, name: []const u8) u32 {
     return count_tag(tag);
 }
 
-pub fn count_tag(a: Atlas, tag: u32) u32 {
-    const region = a.metadata.tags[tag];
+pub fn count_tag(a: Atlas, tag: Tag) u32 {
+    const region = a.metadata.tags[@backingInt(tag)];
     return region.end - region.start;
 }
 

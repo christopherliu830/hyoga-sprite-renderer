@@ -1,3 +1,3 @@
-pub const Renderer = @import("Renderer.zig");
-pub const Sprite = Renderer.Sprite;
-pub const TextObject = Renderer.TextObject;
+pub const Sprites = @import("Sprites.zig");
+pub const Sprite = Sprites.Sprite;
+pub const TextObject = Sprites.TextObject;

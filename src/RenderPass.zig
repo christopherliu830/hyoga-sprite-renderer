@@ -1,8 +1,8 @@
-const SpritePass = @This();
+const RenderPass = @This();
 
 const std = @import("std");
 const hy = @import("hyoga");
-const Renderer = @import("Renderer.zig");
+const Renderer = @import("Sprites.zig");
 const Atlas = @import("Atlas.zig");
 
 const hym = hy.math;
@@ -61,7 +61,8 @@ pub const Instance = struct {
     rotation: vec2,
     scale: vec2,
     uv: [4]f32,
-    color: hy.Color,
+    tint_color: hy.Color,
+    emit_color: hy.Color,
     z_order: f32 = 0,
     texture: Gpu.Texture,
 
@@ -71,10 +72,11 @@ pub const Instance = struct {
         rotation: [2]f32,
         scale: [2]f32,
         uv: [4]f32,
-        color: [4]f32,
+        tint_color: [4]f32,
+        emit_color: [4]f32,
 
         comptime {
-            assert(@sizeOf(Repr) == 4 * 16);
+            assert(@sizeOf(Repr) == 4 * 20);
         }
     };
 
@@ -84,7 +86,8 @@ pub const Instance = struct {
             .rotation = instance.rotation.array,
             .scale = instance.scale.array,
             .uv = instance.uv,
-            .color = instance.color.asvec4_norm(),
+            .tint_color = instance.tint_color.asvec4_norm(),
+            .emit_color = instance.emit_color.asvec4_norm(),
         };
     }
 
@@ -98,7 +101,7 @@ const RenderContext = struct {
     instances: Gpu.Buffer,
 };
 
-pub fn init(gpa: std.mem.Allocator, gpu: Gpu) !SpritePass {
+pub fn init(gpa: std.mem.Allocator, gpu: Gpu) !RenderPass {
     const pipeline = try pipeline_init(gpu);
     const dya: Gpu.DynamicArena = .init(gpa, gpu, .{ .graphics_storage = true });
 
@@ -115,13 +118,13 @@ pub fn init(gpa: std.mem.Allocator, gpu: Gpu) !SpritePass {
     };
 }
 
-pub fn deinit(sp: *SpritePass, gpu: Gpu) void {
+pub fn deinit(sp: *RenderPass, gpu: Gpu) void {
     sp.pipeline.deinit(gpu);
     sp.sampler.deinit(gpu);
     sp.dya.deinit();
 }
 
-pub fn prepare(sp: *SpritePass, gpu: Gpu, cmd: Gpu.CommandBuffer) !void {
+pub fn prepare(sp: *RenderPass, gpu: Gpu, cmd: Gpu.CommandBuffer) !void {
     sp.instances.shrinkRetainingCapacity(@min(sprites_max, sp.instances.items.len));
 
     std.sort.pdq(Instance, sp.instances.items, {}, Instance.lessThan);
@@ -144,7 +147,7 @@ pub fn prepare(sp: *SpritePass, gpu: Gpu, cmd: Gpu.CommandBuffer) !void {
     try sp.dya.finish(gpu, cmd);
 }
 
-pub fn render(sp: *SpritePass, r: *Renderer, cmd: Gpu.CommandBuffer, pass: Gpu.RenderPass) void {
+pub fn render(sp: *RenderPass, r: *Renderer, cmd: Gpu.CommandBuffer, pass: Gpu.RenderPass) void {
     const gpu = r.gpu;
 
     if (sp.instances.items.len == 0) return;
@@ -208,29 +211,39 @@ pub fn render(sp: *SpritePass, r: *Renderer, cmd: Gpu.CommandBuffer, pass: Gpu.R
     }
 }
 
-pub fn instance_add(sp: *SpritePass, atlas: Atlas, arena: std.mem.Allocator, opts: struct {
+pub fn instance_add(sp: *RenderPass, atlas: Atlas, arena: std.mem.Allocator, opts: struct {
     position: vec3,
-    sprite: u32,
+    sprite: Atlas.Tag,
     rotation: vec2 = .px,
     scale: vec2 = .one,
     anim_time: std.Io.Timestamp = .zero,
     anim_speed: f32 = 1.0,
     anim_step: ?u32 = null,
     anim_step_offset: u32 = 0,
-    anim_flip: bool = false,
-    color: hy.Color = .white,
+    anim_flip_x: bool = false,
+    anim_flip_y: bool = false,
+    anim_loop: bool = true,
+    tint_color: hy.Color = .white,
+    emit_color: hy.Color = .none,
     z_order: f32 = 0.0,
 }) !void {
     const rate = opts.anim_speed;
     const unclamped_step = @as(u32, @trunc(hy.time.ttos(opts.anim_time) * rate)) + opts.anim_step_offset;
     const region_count = atlas.count_tag(opts.sprite);
-    const step = if (opts.anim_step) |s| s else unclamped_step % region_count;
+
+    const step = if (opts.anim_step) |s|
+        s
+    else if (opts.anim_loop)
+        unclamped_step % region_count
+    else
+        @min(unclamped_step, region_count - 1);
+
     const image = atlas.get_tag(opts.sprite, step);
     const position = opts.position;
 
-    var scale = opts.scale.mulxy(@floatFromInt(image.w), @floatFromInt(image.h));
+    const scale = opts.scale.mulxy(@floatFromInt(image.w), @floatFromInt(image.h));
 
-    var offset: vec2 = blk: {
+    const offset: vec2 = blk: {
         if (image.origin_x == 0 and image.origin_y == 0) break :blk .zero;
 
         // Image coordinates are (0,0) at the top left.
@@ -248,31 +261,36 @@ pub fn instance_add(sp: *SpritePass, atlas: Atlas, arena: std.mem.Allocator, opt
         );
     };
 
-    if (opts.anim_flip) {
-        offset = offset.mulxy(-1, 1);
-        scale = scale.mulxy(-1, 1);
+    var uv = atlas.uv(image);
+
+    if (opts.anim_flip_x) {
+        std.mem.swap(f32, &uv[0], &uv[1]);
     }
 
-    const uv = atlas.uv(image);
+    if (opts.anim_flip_y) {
+        std.mem.swap(f32, &uv[2], &uv[3]);
+    }
 
     _ = try sp.instances.append(arena, .{
         .position_world = position.xy().add(offset),
         .rotation = opts.rotation,
         .scale = scale,
         .uv = uv,
-        .color = opts.color,
         .z_order = opts.z_order,
         .texture = atlas.texture,
+        .emit_color = opts.emit_color,
+        .tint_color = opts.tint_color,
     });
 }
 
-pub fn custom_add(sp: *SpritePass, arena: std.mem.Allocator, opts: struct {
+pub fn custom_add(sp: *RenderPass, arena: std.mem.Allocator, opts: struct {
     position: vec2,
     rotation: vec2 = .px,
     size: vec2,
     texture: Gpu.Texture,
     uv: [4]f32,
-    color: hy.Color = .white,
+    tint_color: hy.Color = .white,
+    emit_color: hy.Color = .none,
     z_order: f32 = 0.0,
 }) !void {
     _ = try sp.instances.append(arena, .{
@@ -280,7 +298,8 @@ pub fn custom_add(sp: *SpritePass, arena: std.mem.Allocator, opts: struct {
         .rotation = opts.rotation,
         .scale = opts.size,
         .uv = opts.uv,
-        .color = opts.color,
+        .tint_color = opts.tint_color,
+        .emit_color = opts.emit_color,
         .z_order = opts.z_order,
         .texture = opts.texture,
     });

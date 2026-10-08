@@ -11,19 +11,21 @@ struct Scene {
 
 struct Sprite {
     // 16 floats
-    static const uint size = 4 * 16;
+    static const uint size = 4 * 20;
 
     float3 world_position;
     float  _padding;
     float2 rotation;
     float2 scale;
     float4 uv; // [ u_0, u_1, v_0, v_1 ]
-    float4 color;
+    float4 tint_color;
+    float4 emit_color;
 };
 
 struct BillboardOut {
     float4 position: SV_Position;
-    float4 color;
+    float4 tint_color;
+    float4 emit_color;
     float2 uv;
 };
 
@@ -99,7 +101,8 @@ BillboardOut vertex_main(uint idx: SV_VertexID) {
 
     var output: BillboardOut;
     output.position = mul(position_world, scene.view_projection);
-    output.color = sprite.color;
+    output.tint_color = sprite.tint_color;
+    output.emit_color = sprite.emit_color;
     output.uv = uv_lookup[vertex_idx];
 
     return output;
@@ -111,6 +114,6 @@ Sampler2D tex_sprites;
 [shader("fragment")]
 float4 fragment_main(BillboardOut input): SV_Target {
     let albedo = tex_sprites.Sample(input.uv);
-    let frag_color = albedo * input.color;
+    let frag_color = albedo * input.tint_color + input.emit_color;
     return frag_color;
 };

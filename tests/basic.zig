@@ -1,7 +1,7 @@
 const std = @import("std");
 const hy = @import("hyoga");
-const hyspr = @import("hyspr");
-const Renderer = hyspr.Renderer;
+const hy_sprite = @import("hy_sprite");
+const Renderer = hy_sprite.Renderer;
 
 const blob_embed align(hy.PackFile.blob_align) = @embedFile("blob").*;
 
